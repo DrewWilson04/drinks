@@ -119,3 +119,11 @@ src/lib/               Supabase clients, types, drink presets, recognize.ts (Cla
 - Notifications for cheers, comments and follow requests
 - Editing a logged drink
 - Optional safety features (estimated BAC, pace reminders)
+
+## Live demo (no setup)
+
+`demo/drinks.html` is a single-page version of the app that runs on claude.ai
+without Supabase, logins or API keys: people are identified by their claude.ai
+account, drinks are stored in the page's shared database, and "Scan a drink"
+uses the viewer's own Claude access. It's for trying the experience with
+friends before the real deployment.

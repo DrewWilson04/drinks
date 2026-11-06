@@ -1,0 +1,729 @@
+<title>drinks</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: one centered column (max 720px), sticky top bar with tabs; cards for drinks, tiles for stats. */
+:root {
+  --bg: #faf7f2;
+  --surface: #ffffff;
+  --surface-2: #f3eee6;
+  --border: #e7e0d4;
+  --text: #1c1917;
+  --muted: #78716c;
+  --accent: #d97706;
+  --accent-strong: #b45309;
+  --accent-soft: #fef3c7;
+  --on-accent: #ffffff;
+  --danger: #dc2626;
+  --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12100e; --surface: #1c1917; --surface-2: #26221f; --border: #36302b;
+    --text: #f5f5f4; --muted: #a8a29e; --accent: #f59e0b; --accent-strong: #fbbf24;
+    --accent-soft: #3a2a10; --on-accent: #1c1917; --danger: #f87171; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12100e; --surface: #1c1917; --surface-2: #26221f; --border: #36302b;
+  --text: #f5f5f4; --muted: #a8a29e; --accent: #f59e0b; --accent-strong: #fbbf24;
+  --accent-soft: #3a2a10; --on-accent: #1c1917; --danger: #f87171; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--text); font: 15px/1.45 var(--font); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); }
+.wrap { max-width: 720px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.bar { display: flex; align-items: center; gap: 10px; height: 54px; }
+.brand { font-weight: 800; font-size: 18px; letter-spacing: -0.02em; text-decoration: none; }
+.demo-pill { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent-strong); background: var(--accent-soft); border-radius: 999px; padding: 2px 8px; }
+.spacer { flex: 1; }
+.tabs { display: flex; gap: 4px; overflow-x: auto; padding-block: 0 8px; scrollbar-width: none; }
+.tab { border: 0; background: none; border-radius: 999px; padding: 5px 12px; font-size: 14px; color: var(--muted); cursor: pointer; white-space: nowrap; text-decoration: none; }
+.tab:hover { color: var(--text); }
+.tab.on { background: var(--accent-soft); color: var(--accent-strong); font-weight: 600; }
+main { padding-block: 20px 60px; }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 14px; min-width: 0; }
+.stack { display: flex; flex-direction: column; gap: 12px; }
+.row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.grow { flex: 1; min-width: 0; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.tiny { font-size: 11px; }
+.trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+h1 { font-size: 24px; letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+h2 { font-size: 16px; margin: 0; }
+.num { font-variant-numeric: tabular-nums; }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; flex-shrink: 0; border: 1px solid var(--border); background: var(--surface); border-radius: 12px; padding: 8px 14px; font-size: 14px; font-weight: 500; cursor: pointer; text-decoration: none; }
+.btn:hover { background: var(--surface-2); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn.primary { background: var(--accent); border-color: transparent; color: var(--on-accent); }
+.btn.primary:hover { background: var(--accent-strong); }
+.btn.big { padding: 12px 18px; font-size: 16px; }
+.btn.sm { padding: 5px 10px; font-size: 13px; }
+.btn.danger { color: var(--danger); }
+.input { width: 100%; border: 1px solid var(--border); background: var(--surface); border-radius: 12px; padding: 9px 12px; }
+.input:focus { border-color: var(--accent); outline: none; }
+label.lbl, .lbl { display: block; font-size: 13px; font-weight: 500; color: var(--muted); margin-bottom: 4px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 480px) { .grid2.stack-sm { grid-template-columns: 1fr; } }
+
+.avatar { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; object-fit: cover; background: var(--surface-2); }
+.avatar.s { width: 32px; height: 32px; }
+.avatar.l { width: 72px; height: 72px; }
+.link { background: none; border: 0; padding: 0; cursor: pointer; font-weight: 600; text-align: left; }
+.link:hover { text-decoration: underline; }
+
+.drink-icon { width: 48px; height: 48px; border-radius: 12px; background: var(--surface-2); display: grid; place-items: center; font-size: 26px; flex-shrink: 0; }
+.std { text-align: right; }
+.std b { display: block; font-size: 20px; }
+.photo { width: 100%; max-height: 380px; object-fit: cover; border-radius: 12px; display: block; }
+.chip { display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; border-radius: 999px; padding: 4px 10px; font-size: 13px; color: var(--muted); cursor: pointer; }
+.chip:hover { color: var(--text); background: var(--surface-2); }
+.chip.on { background: var(--accent-soft); color: var(--accent-strong); font-weight: 600; }
+.comment { display: flex; gap: 8px; }
+.bubble { background: var(--surface-2); border-radius: 14px; padding: 6px 10px; min-width: 0; flex: 1; overflow-wrap: anywhere; }
+
+.types { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.type { display: flex; flex-direction: column; align-items: center; gap: 2px; border: 1px solid var(--border); background: var(--surface); border-radius: 12px; padding: 8px 4px; font-size: 12px; cursor: pointer; }
+.type span { font-size: 24px; }
+.type.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-strong); font-weight: 600; }
+.scan { background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface)); }
+.stepper { display: flex; align-items: center; gap: 8px; }
+.stepper .btn { width: 36px; height: 36px; padding: 0; }
+
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+@media (max-width: 480px) { .tiles.six { grid-template-columns: repeat(2, 1fr); } }
+.tile .v { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.chart { position: relative; height: 140px; margin-top: 8px; }
+.gridline { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--border); }
+.bars { position: absolute; inset: 0; display: flex; align-items: flex-end; gap: 2px; }
+.barhit { flex: 1; height: 100%; display: flex; align-items: flex-end; background: none; border: 0; padding: 0; cursor: pointer; }
+.barhit span { display: block; width: 100%; background: var(--accent); border-radius: 4px 4px 0 0; }
+.barhit:hover span, .barhit.on span { background: var(--accent-strong); }
+.hbar { height: 10px; border-radius: 0 4px 4px 0; background: var(--accent); }
+.hbar-track { background: var(--surface-2); border-radius: 0 4px 4px 0; }
+.typerow { display: grid; grid-template-columns: 7.5rem 1fr 3rem; align-items: center; gap: 8px; font-size: 14px; }
+
+.rank { width: 28px; text-align: center; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.me-row { border-color: var(--accent); }
+.notice { border-radius: 12px; padding: 10px 12px; background: var(--accent-soft); color: var(--accent-strong); font-size: 14px; }
+.empty { text-align: center; padding: 36px 16px; }
+.empty .big { font-size: 40px; }
+.err { color: var(--danger); font-size: 14px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="bar">
+      <a class="brand" href="#feed">🍻 drinks</a>
+      <span class="demo-pill">Demo</span>
+      <span class="spacer"></span>
+      <a class="btn primary sm" href="#log" id="logBtn">+ Log</a>
+    </div>
+    <nav class="tabs" id="tabs" aria-label="Sections"></nav>
+  </div>
+</header>
+<main class="wrap" id="app" aria-live="polite"></main>
+
+<script>
+"use strict";
+
+// ---------------------------------------------------------------- constants
+const TYPES = [
+  { type: "beer", label: "Beer", emoji: "🍺", ml: 355, abv: 5 },
+  { type: "wine", label: "Wine", emoji: "🍷", ml: 150, abv: 12 },
+  { type: "cocktail", label: "Cocktail", emoji: "🍸", ml: 120, abv: 15 },
+  { type: "shot", label: "Shot", emoji: "🥃", ml: 44, abv: 40 },
+  { type: "spirit", label: "Mixed", emoji: "🥂", ml: 250, abv: 7 },
+  { type: "cider", label: "Cider", emoji: "🍏", ml: 355, abv: 5 },
+  { type: "seltzer", label: "Seltzer", emoji: "🫧", ml: 355, abv: 5 },
+  { type: "other", label: "Other", emoji: "🍹", ml: 250, abv: 5 },
+];
+const SIZES = [["Shot 44 ml", 44], ["Wine 150 ml", 150], ["Bottle 330 ml", 330], ["Can 12 oz", 355], ["US pint", 473], ["UK pint", 568]];
+const PERIODS = [["24h", "24 hours", 864e5], ["7d", "7 days", 7 * 864e5], ["30d", "30 days", 30 * 864e5], ["all", "All time", Infinity]];
+const ROUTES = ["feed", "log", "leaderboard", "groups", "me", "person", "group"];
+const TABS = [["feed", "Feed"], ["leaderboard", "Leaderboard"], ["groups", "Groups"], ["me", "My stats"]];
+const MAX_DRINKS_PER_PERSON = 1500;
+const DAY = 864e5;
+
+const meta = (t) => TYPES.find((x) => x.type === t) || TYPES[7];
+const stdOf = (ml, abv) => Math.round((ml * abv / 100) * 0.789 / 14 * 100) / 100;
+const fmtStd = (n) => { const v = Number(n) || 0; return v.toFixed(v >= 10 ? 0 : 1); };
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const rid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+function timeAgo(ms) {
+  const d = (Date.now() - ms) / 1000;
+  if (d < 60) return "just now";
+  if (d < 3600) return Math.floor(d / 60) + "m ago";
+  if (d < 86400) return Math.floor(d / 3600) + "h ago";
+  if (d < 604800) return Math.floor(d / 86400) + "d ago";
+  return new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+function localInputNow() {
+  const d = new Date(); d.setSeconds(0, 0);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 16);
+}
+const startOfDay = (ms) => { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime(); };
+const dayKey = (ms) => { const d = new Date(ms); return d.getFullYear() + "-" + d.getMonth() + "-" + d.getDate(); };
+
+// ---------------------------------------------------------------- state
+const S = {
+  route: "feed", person: null, group: null,
+  uid: null, canWrite: false, status: "loading", // loading | ready | nodb | offline
+  dbError: null, slow: false, loaded: false,
+  drinks: {}, cheers: {}, comments: {}, groups: {}, members: {},
+  prof: {}, feedLimit: 30, period: "7d", openComments: new Set(),
+  hover: null, confirmDelete: null, toast: "",
+  log: null,
+};
+let db = null, user = null, sample = null, assets = null, imageScan = false;
+
+function freshLog() {
+  return { type: "beer", name: "", ml: "355", abv: "5", qty: 1, when: localInputNow(), group: S.group && isMember(S.group) ? S.group : "", notes: "",
+    photo: null, photoUrl: null, scanning: false, scan: null, picked: 0, quick: "", error: "", saving: false };
+}
+
+// ---------------------------------------------------------------- derived data
+function allDrinks() {
+  const out = [];
+  for (const [uid, items] of Object.entries(S.drinks)) for (const d of items) out.push({ ...d, uid, key: uid + "/" + d.id });
+  return out.sort((a, b) => b.at - a.at);
+}
+function cheerIndex() {
+  const count = {}, mine = new Set(S.cheers[S.uid] || []);
+  for (const keys of Object.values(S.cheers)) for (const k of keys) count[k] = (count[k] || 0) + 1;
+  return { count, mine };
+}
+function commentIndex() {
+  const by = {};
+  for (const [uid, items] of Object.entries(S.comments)) for (const c of items) (by[c.k] ||= []).push({ ...c, uid });
+  for (const k in by) by[k].sort((a, b) => a.at - b.at);
+  return by;
+}
+const myGroups = () => S.members[S.uid] || [];
+const isMember = (gid) => myGroups().includes(gid);
+function groupMembers(gid) { return Object.entries(S.members).filter(([, g]) => g.includes(gid)).map(([u]) => u); }
+function nameOf(uid) { return (S.prof[uid] && S.prof[uid].name) || (uid === S.uid ? "You" : "Someone"); }
+function avatarOf(uid) { return S.prof[uid]?.avatarUrl || ""; }
+function leaderboard(filter) {
+  const rows = {};
+  for (const d of allDrinks()) if (filter(d)) {
+    const r = (rows[d.uid] ||= { uid: d.uid, count: 0, std: 0 });
+    r.count++; r.std += d.std;
+  }
+  return Object.values(rows).sort((a, b) => b.std - a.std || b.count - a.count);
+}
+
+// ---------------------------------------------------------------- platform
+async function boot() {
+  route();
+  const c = window.claude;
+  if (!c || typeof c.use !== "function") { S.status = "offline"; render(); return; }
+  [user, db, sample, assets] = await Promise.all(["user", "db", "sample", "assets"].map((n) => c.use(n).catch(() => null)));
+  if (user) {
+    S.uid = await Promise.resolve(user.id()).catch(() => null);
+    let w = null;
+    try { w = await Promise.resolve(user.can("data.write")); } catch { w = null; }
+    S.canWrite = !!S.uid && w !== false;
+  }
+  if (sample) { const lim = await sample.limits().catch(() => null); imageScan = !!lim?.images; }
+  if (!db) { S.status = "nodb"; render(); return; }
+  S.status = "ready";
+  const slow = setTimeout(() => { S.slow = true; render(); }, 10000);
+  const done = () => { clearTimeout(slow); if (S.slow) { S.slow = false; } };
+  const sub = (col, apply) => db.collection(col).onSnapshot((snap) => {
+    apply(snap);
+    if (!snap.metadata.fromCache) done();
+    loadProfiles();
+    scheduleRender();
+  }, (e) => { done(); S.dbError = e.code; scheduleRender(); });
+  sub("drinks", (s) => { S.loaded = true; const o = {}; s.docs.forEach((d) => { o[d.id] = Array.isArray(d.data().items) ? d.data().items : []; }); if (pendingMine.drinks) o[S.uid] = pendingMine.drinks; S.drinks = o; });
+  sub("cheers", (s) => { const o = {}; s.docs.forEach((d) => { o[d.id] = Array.isArray(d.data().keys) ? d.data().keys : []; }); if (pendingMine.cheers) o[S.uid] = pendingMine.cheers; S.cheers = o; });
+  sub("comments", (s) => { const o = {}; s.docs.forEach((d) => { o[d.id] = Array.isArray(d.data().items) ? d.data().items : []; }); if (pendingMine.comments) o[S.uid] = pendingMine.comments; S.comments = o; });
+  sub("memberships", (s) => { const o = {}; s.docs.forEach((d) => { o[d.id] = Array.isArray(d.data().groups) ? d.data().groups : []; }); if (pendingMine.memberships) o[S.uid] = pendingMine.memberships; S.members = o; });
+  sub("groups", (s) => { const o = {}; s.docs.forEach((d) => { o[d.id] = d.data(); }); S.groups = o; });
+  render();
+}
+
+let profileBusy = false;
+async function loadProfiles() {
+  if (!user || profileBusy) return;
+  const ids = new Set([S.uid, ...Object.keys(S.drinks), ...Object.keys(S.members), ...Object.keys(S.comments)].filter(Boolean));
+  const missing = [...ids].filter((id) => !S.prof[id]);
+  if (!missing.length) return;
+  profileBusy = true;
+  try {
+    const ps = await user.profiles(missing);
+    for (const id of missing) if (ps && ps[id]) S.prof[id] = ps[id];
+    scheduleRender();
+  } catch { /* names fall back to "Someone" */ }
+  profileBusy = false;
+}
+
+// Writes: one at a time per document; my own docs are mirrored locally right away.
+const pendingMine = {};
+const queues = {};
+function saveMine(col, field, value) {
+  pendingMine[col] = value;
+  const path = col + "/" + S.uid;
+  const run = () => db.doc(path).set({ [field]: value, updatedAt: Date.now() });
+  const p = (queues[path] || Promise.resolve()).catch(() => {}).then(run);
+  queues[path] = p;
+  return p.then(() => { if (pendingMine[col] === value) delete pendingMine[col]; }, (e) => {
+    if (pendingMine[col] === value) delete pendingMine[col];
+    if (e && e.code === "invalid_argument") S.canWrite = false;
+    toast(e && e.code === "quota_exceeded" ? "Storage is full for this demo." : "Couldn't save that. Check your connection and try again.");
+    throw e;
+  });
+}
+function setMine(col, field, value) {
+  const map = { drinks: "drinks", cheers: "cheers", comments: "comments", memberships: "members" }[col];
+  S[map] = { ...S[map], [S.uid]: value };
+  scheduleRender();
+  return saveMine(col, field, value);
+}
+
+let toastTimer;
+function toast(msg) { S.toast = msg; scheduleRender(); clearTimeout(toastTimer); toastTimer = setTimeout(() => { S.toast = ""; scheduleRender(); }, 4000); }
+
+// ---------------------------------------------------------------- actions
+async function addDrinks(entries) {
+  const mine = [...(S.drinks[S.uid] || []), ...entries].sort((a, b) => a.at - b.at).slice(-MAX_DRINKS_PER_PERSON);
+  return setMine("drinks", "items", mine);
+}
+function deleteDrink(id) {
+  setMine("drinks", "items", (S.drinks[S.uid] || []).filter((d) => d.id !== id)).catch(() => {});
+}
+function toggleCheer(key) {
+  const mine = new Set(S.cheers[S.uid] || []);
+  mine.has(key) ? mine.delete(key) : mine.add(key);
+  setMine("cheers", "keys", [...mine].slice(-2000)).catch(() => {});
+}
+function addComment(key, body) {
+  const items = [...(S.comments[S.uid] || []), { id: rid(), k: key, body: body.slice(0, 500), at: Date.now() }].slice(-1000);
+  setMine("comments", "items", items).catch(() => {});
+}
+function deleteComment(id) { setMine("comments", "items", (S.comments[S.uid] || []).filter((c) => c.id !== id)).catch(() => {}); }
+function joinGroup(gid) { if (!isMember(gid)) setMine("memberships", "groups", [...myGroups(), gid]).catch(() => {}); }
+function leaveGroup(gid) { setMine("memberships", "groups", myGroups().filter((g) => g !== gid)).catch(() => {}); }
+async function createGroup(name, kind) {
+  const ref = db.collection("groups").doc();
+  await ref.set({ name: name.slice(0, 60), kind, by: S.uid, at: Date.now() });
+  joinGroup(ref.id);
+  return ref.id;
+}
+
+// ---------------------------------------------------------------- routing
+function route() {
+  const h = location.hash.slice(1);
+  S.route = ROUTES.includes(h) ? h : "feed";
+  if (S.route === "person" && !S.person) S.route = "feed";
+  if (S.route === "group" && !S.group) S.route = "groups";
+  if (S.route === "log") S.log = freshLog();
+  S.confirmDelete = null;
+}
+function go(r) { if (location.hash === "#" + r) { route(); render(); } else location.hash = r; window.scrollTo(0, 0); }
+window.addEventListener("hashchange", () => { route(); render(); window.scrollTo(0, 0); });
+
+// ---------------------------------------------------------------- render
+let raf = 0;
+function scheduleRender() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; render(); }); }
+
+function render() {
+  document.getElementById("tabs").innerHTML = TABS.map(([r, l]) =>
+    `<a class="tab ${S.route === r || (r === "groups" && S.route === "group") ? "on" : ""}" href="#${r}">${l}</a>`).join("");
+  document.getElementById("logBtn").hidden = !S.canWrite || S.route === "log";
+  const app = document.getElementById("app");
+  // keep focus and typed text across re-renders
+  const active = document.activeElement;
+  const keep = active && active.id && app.contains(active) ? { id: active.id, start: active.selectionStart, end: active.selectionEnd } : null;
+  const values = {};
+  app.querySelectorAll("[data-keep]").forEach((el) => { values[el.id] = el.value; });
+
+  app.innerHTML = view();
+
+  for (const [id, v] of Object.entries(values)) { const el = document.getElementById(id); if (el && el.value !== v) el.value = v; }
+  if (keep) { const el = document.getElementById(keep.id); if (el) { el.focus(); try { if (keep.start != null) el.setSelectionRange(keep.start, keep.end); } catch {} } }
+}
+
+function view() {
+  if (S.status === "offline") return `<div class="card empty"><div class="big">🍻</div><p><b>Open this page on claude.ai</b></p><p class="muted small">The shared feed and leaderboards need the claude.ai viewer.</p></div>`;
+  if (S.status === "nodb") return `<div class="card empty"><div class="big">🔒</div><p><b>Sign in to claude.ai to use drinks</b></p><p class="muted small">Your drinks are saved to your claude.ai account, so you need to be signed in to see the feed and log drinks.</p></div>`;
+  let banner = "";
+  if (S.status === "ready" && !S.canWrite) banner = `<div class="notice" style="margin-bottom:12px">You can look around, but logging is off for you. Ask the owner to share this page with you as a Contributor.</div>`;
+  if (S.slow) banner += `<div class="notice" style="margin-bottom:12px">Still loading shared data. It may be out of date.</div>`;
+  if (S.dbError) banner += `<div class="notice" style="margin-bottom:12px">Live updates stopped. Reload the page to reconnect.</div>`;
+  if (S.toast) banner += `<div class="notice" role="status" style="margin-bottom:12px">${esc(S.toast)}</div>`;
+  const v = { feed: viewFeed, log: viewLog, leaderboard: viewBoard, groups: viewGroups, me: viewMe, person: viewPerson, group: viewGroup }[S.route];
+  return banner + v();
+}
+
+function avatarImg(uid, cls = "") {
+  const src = avatarOf(uid);
+  return src ? `<img class="avatar ${cls}" src="${esc(src)}" alt="">` : `<span class="avatar ${cls}" aria-hidden="true"></span>`;
+}
+function personLink(uid) { return `<button class="link" data-act="person" data-uid="${esc(uid)}">${esc(nameOf(uid))}</button>`; }
+
+function drinkCard(d, ci, cm) {
+  const m = meta(d.type), key = d.key, title = d.name || m.label;
+  const cheered = ci.mine.has(key), cheerCount = ci.count[key] || 0;
+  const comments = cm[key] || [], open = S.openComments.has(key);
+  const group = d.group && S.groups[d.group];
+  const mine = d.uid === S.uid;
+  return `<article class="card stack">
+    <div class="row">${avatarImg(d.uid)}
+      <div class="grow"><div class="trunc">${personLink(d.uid)}</div>
+        <div class="muted small trunc"><time title="${esc(new Date(d.at).toLocaleString())}">${timeAgo(d.at)}</time>${group ? ` · <button class="link" style="font-weight:400" data-act="group" data-gid="${esc(d.group)}">${esc(group.name)}</button>` : ""}</div>
+      </div>
+    </div>
+    <div class="row"><div class="drink-icon" aria-hidden="true">${m.emoji}</div>
+      <div class="grow"><div class="trunc" style="font-weight:600">${esc(title)}</div><div class="muted small">${+d.ml} ml · ${+d.abv}% ABV</div></div>
+      <div class="std num"><b>${fmtStd(d.std)}</b><span class="tiny muted">std drinks</span></div>
+    </div>
+    ${d.notes ? `<div style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(d.notes)}</div>` : ""}
+    ${d.photo ? `<img class="photo" src="/_blob/${esc(d.photo)}" alt="${esc(title)}" loading="lazy">` : ""}
+    <div class="row" style="gap:4px">
+      <button class="chip ${cheered ? "on" : ""}" aria-pressed="${cheered}" data-act="cheer" data-key="${esc(key)}" ${S.canWrite ? "" : "disabled"}>🍻 ${cheerCount || "Cheers"}</button>
+      <button class="chip ${open ? "on" : ""}" data-act="comments" data-key="${esc(key)}">💬 ${comments.length || "Comment"}</button>
+      <span class="spacer"></span>
+      ${mine ? (S.confirmDelete === key
+        ? `<button class="chip" style="color:var(--danger)" data-act="del-yes" data-id="${esc(d.id)}">Tap to delete</button><button class="chip" data-act="del-no">Keep</button>`
+        : `<button class="chip" data-act="del" data-key="${esc(key)}">Delete</button>`) : ""}
+    </div>
+    ${open ? `<div class="stack" style="gap:8px">
+      ${comments.map((c) => `<div class="comment">${avatarImg(c.uid, "s")}<div class="bubble small"><div class="row" style="gap:6px"><b>${esc(nameOf(c.uid))}</b><span class="muted tiny">${timeAgo(c.at)}</span>${c.uid === S.uid ? `<span class="spacer"></span><button class="chip tiny" data-act="uncomment" data-id="${esc(c.id)}">Delete</button>` : ""}</div><div style="white-space:pre-wrap">${esc(c.body)}</div></div></div>`).join("")}
+      ${S.canWrite ? `<form class="row" data-form="comment" data-key="${esc(key)}"><input class="input" id="c-${esc(key.replace(/[^a-zA-Z0-9_-]/g, "_"))}" data-keep name="body" maxlength="500" placeholder="Add a comment…" aria-label="Comment" autocomplete="off"><button class="btn">Post</button></form>` : ""}
+    </div>` : ""}
+  </article>`;
+}
+
+function emptyCard(emoji, title, body, cta = true) {
+  return `<div class="card empty"><div class="big">${emoji}</div><p style="margin:8px 0 4px"><b>${title}</b></p><p class="muted small" style="margin:0">${body}</p>${cta && S.canWrite ? `<p><a class="btn primary" href="#log">Log a drink</a></p>` : ""}</div>`;
+}
+
+const loadingCard = () => `<div class="card empty muted" aria-busy="true">Loading drinks…</div>`;
+function viewFeed() {
+  if (!S.loaded) return loadingCard();
+  const ds = allDrinks(), ci = cheerIndex(), cm = commentIndex();
+  if (!ds.length) return emptyCard("🫗", "No drinks yet", "Everyone's drinks show up here as they log them. Be the first.");
+  const shown = ds.slice(0, S.feedLimit);
+  return `<div class="stack">${shown.map((d) => drinkCard(d, ci, cm)).join("")}
+    ${ds.length > shown.length ? `<button class="btn" style="align-self:center" data-act="more">Show older</button>` : ""}</div>`;
+}
+
+function boardList(rows) {
+  if (!rows.length) return `<div class="card empty muted">No drinks logged in this period yet.</div>`;
+  const medals = ["🥇", "🥈", "🥉"];
+  return `<ol class="stack" style="list-style:none;padding:0;margin:0">${rows.map((r, i) => `<li>
+    <div class="card row ${r.uid === S.uid ? "me-row" : ""}">
+      <span class="rank">${medals[i] || i + 1}</span>${avatarImg(r.uid, "s")}
+      <div class="grow"><div class="trunc">${personLink(r.uid)}${r.uid === S.uid ? ' <span class="muted">(you)</span>' : ""}</div><div class="muted small">${r.count} ${r.count === 1 ? "drink" : "drinks"}</div></div>
+      <div class="std num"><b>${fmtStd(r.std)}</b><span class="tiny muted">std drinks</span></div>
+    </div></li>`).join("")}</ol>`;
+}
+function periodTabs() {
+  return `<div class="row" style="gap:4px;flex-wrap:wrap">${PERIODS.map(([k, l]) => `<button class="tab ${S.period === k ? "on" : ""}" data-act="period" data-p="${k}">${l}</button>`).join("")}</div>`;
+}
+function inPeriod(d) { const p = PERIODS.find((x) => x[0] === S.period); return Date.now() - d.at <= p[2]; }
+
+function viewBoard() {
+  if (!S.loaded) return loadingCard();
+  return `<div class="stack"><h1>Leaderboard</h1>${periodTabs()}${boardList(leaderboard(inPeriod))}
+    <p class="muted tiny">Ranked by standard drinks (14 g of alcohol each).</p></div>`;
+}
+
+function viewGroups() {
+  const gs = Object.entries(S.groups).sort((a, b) => (isMember(b[0]) - isMember(a[0])) || (b[1].at - a[1].at));
+  return `<div class="stack"><h1>Groups & events</h1>
+    ${gs.length ? gs.map(([id, g]) => {
+      const n = groupMembers(id).length, member = isMember(id);
+      return `<div class="card row"><div class="drink-icon" aria-hidden="true">${g.kind === "event" ? "🎉" : "👯"}</div>
+        <div class="grow"><button class="link trunc" data-act="group" data-gid="${esc(id)}">${esc(g.name)}</button><div class="muted small">${g.kind === "event" ? "Event" : "Group"} · ${n} ${n === 1 ? "member" : "members"}${member ? " · you're in" : ""}</div></div>
+        ${S.canWrite ? (member ? `<button class="btn sm" data-act="leave" data-gid="${esc(id)}">Leave</button>` : `<button class="btn sm primary" data-act="join" data-gid="${esc(id)}">Join</button>`) : ""}
+      </div>`;
+    }).join("") : `<div class="card empty muted">No groups yet. Make one for your crew or tonight's night out.</div>`}
+    ${S.canWrite ? `<form class="card stack" data-form="group">
+      <h2>New group or event</h2>
+      <div class="row" style="gap:4px"><label class="tab on" style="cursor:pointer"><input type="radio" name="kind" value="group" checked class="sr"> 👯 Group</label><label class="tab" style="cursor:pointer"><input type="radio" name="kind" value="event" class="sr"> 🎉 Event</label></div>
+      <input class="input" id="g-name" data-keep name="name" maxlength="60" required placeholder="The usual crew" aria-label="Name">
+      <button class="btn primary">Create</button>
+    </form>` : ""}
+  </div>`;
+}
+
+function viewGroup() {
+  const g = S.groups[S.group];
+  if (!g) return emptyCard("🤷", "That group is gone", "It may have been deleted.", false);
+  const ds = allDrinks().filter((d) => d.group === S.group), ci = cheerIndex(), cm = commentIndex();
+  const member = isMember(S.group), members = groupMembers(S.group);
+  return `<div class="stack">
+    <div class="row"><div class="drink-icon" aria-hidden="true">${g.kind === "event" ? "🎉" : "👯"}</div><div class="grow"><h1 class="trunc">${esc(g.name)}</h1><div class="muted small">${g.kind === "event" ? "Event" : "Group"} · ${members.length} members</div></div></div>
+    ${S.canWrite ? `<div class="row" style="flex-wrap:wrap">${member ? `<a class="btn primary" href="#log">+ Log a drink here</a><button class="btn" data-act="leave" data-gid="${esc(S.group)}">Leave</button>` : `<button class="btn primary" data-act="join" data-gid="${esc(S.group)}">Join</button>`}</div>` : ""}
+    <h2>Leaderboard</h2>${boardList(leaderboard((d) => d.group === S.group))}
+    <h2>Members</h2><div class="row" style="flex-wrap:wrap;gap:12px">${members.map((u) => `<span class="row" style="gap:6px">${avatarImg(u, "s")}${personLink(u)}</span>`).join("") || '<span class="muted">Nobody yet.</span>'}</div>
+    <h2>Drinks</h2>${ds.length ? ds.slice(0, 50).map((d) => drinkCard(d, ci, cm)).join("") : `<div class="card empty muted">No drinks logged here yet.</div>`}
+  </div>`;
+}
+
+// ---------- stats
+function stats(rows) {
+  const now = Date.now(), today = startOfDay(now);
+  const sum = (since) => rows.filter((r) => r.at >= since).reduce((s, r) => s + r.std, 0);
+  const byDay = new Map();
+  for (const r of rows) { const k = dayKey(r.at); const v = byDay.get(k) || { std: 0, count: 0 }; v.std += r.std; v.count++; byDay.set(k, v); }
+  const days = Array.from({ length: 30 }, (_, i) => { const t = startOfDay(today - (29 - i) * DAY + DAY / 2); return { t, ...(byDay.get(dayKey(t)) || { std: 0, count: 0 }) }; });
+  const byType = {};
+  for (const r of rows) { const v = (byType[r.type] ||= { std: 0, count: 0 }); v.std += r.std; v.count++; }
+  const types = TYPES.filter((t) => byType[t.type]).map((t) => ({ ...t, ...byType[t.type] })).sort((a, b) => b.std - a.std);
+  const total = rows.reduce((s, r) => s + r.std, 0);
+  return { today: sum(today), week: sum(today - 6 * DAY), month: sum(today - 29 * DAY), total, count: rows.length, drinkingDays: byDay.size, days, types };
+}
+function statsView(rows, compact) {
+  const s = stats(rows);
+  const tiles = compact
+    ? [["Last 7 days", fmtStd(s.week), "std drinks"], ["Last 30 days", fmtStd(s.month), "std drinks"], ["Drinks logged", s.count, "all time"]]
+    : [["Today", fmtStd(s.today), "std drinks"], ["Last 7 days", fmtStd(s.week), "std drinks"], ["Last 30 days", fmtStd(s.month), "std drinks"],
+       ["All time", fmtStd(s.total), s.count + " drinks"], ["Drinking days", s.drinkingDays, "all time"], ["Per drinking day", fmtStd(s.drinkingDays ? s.total / s.drinkingDays : 0), "std drinks avg"]];
+  const max = Math.max(1, Math.ceil(Math.max(...s.days.map((d) => d.std))));
+  const fmtD = (t) => new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const h = S.hover != null ? s.days[S.hover] : null;
+  return `<div class="tiles ${compact ? "" : "six"}">${tiles.map(([l, v, sub]) => `<div class="card tile"><div class="muted tiny">${l}</div><div class="v">${v}</div><div class="muted tiny">${sub}</div></div>`).join("")}</div>
+  <section class="card">
+    <div class="row"><h2 class="grow">Standard drinks per day</h2><span class="muted tiny">last 30 days</span></div>
+    <div class="small num" style="height:20px;margin-top:4px">${h ? `<b>${fmtD(h.t)}</b> <span class="muted">· ${fmtStd(h.std)} std drinks · ${h.count} ${h.count === 1 ? "drink" : "drinks"}</span>` : '<span class="muted">Tap or hover a bar for details</span>'}</div>
+    <div class="chart">
+      <div class="gridline" style="top:0"></div><div class="gridline" style="top:50%"></div><div class="gridline" style="bottom:0;border-top-style:solid"></div>
+      <span class="tiny muted" style="position:absolute;right:0;top:-8px;background:var(--surface);padding-left:4px">${max}</span>
+      <div class="bars">${s.days.map((d, i) => `<button class="barhit ${S.hover === i ? "on" : ""}" data-act="bar" data-i="${i}" aria-label="${fmtD(d.t)}: ${fmtStd(d.std)} standard drinks"><span style="height:${(d.std / max) * 100}%;${d.std > 0 ? "min-height:3px" : ""}"></span></button>`).join("")}</div>
+    </div>
+    <div class="row muted tiny" style="justify-content:space-between;margin-top:4px"><span>${fmtD(s.days[0].t)}</span><span>${fmtD(s.days[15].t)}</span><span>Today</span></div>
+  </section>
+  ${!compact && s.types.length ? `<section class="card stack" style="gap:8px"><h2>By type</h2><span class="muted tiny" style="margin-top:-6px">standard drinks, all time</span>
+    ${s.types.map((t) => `<div class="typerow"><span class="trunc">${t.emoji} ${t.label}</span><div class="hbar-track"><div class="hbar" style="width:${(t.std / s.types[0].std) * 100}%" title="${t.count} drinks"></div></div><span class="num muted" style="text-align:right">${fmtStd(t.std)}</span></div>`).join("")}
+  </section>` : ""}`;
+}
+
+function viewMe() {
+  if (!S.uid) return emptyCard("🙂", "Sign in to see your stats", "Your stats come from the drinks you log.", false);
+  if (!S.loaded) return loadingCard();
+  const rows = S.drinks[S.uid] || [];
+  return `<div class="stack">
+    <div class="row">${avatarImg(S.uid, "l")}<div class="grow"><h1 class="trunc">${esc(nameOf(S.uid))}</h1><div class="muted small">Your name and photo come from your Claude account.</div></div></div>
+    ${statsView(rows, false)}
+    <h2>Your drinks</h2>
+    ${rows.length ? allDrinks().filter((d) => d.uid === S.uid).slice(0, 30).map((d) => drinkCard(d, cheerIndex(), commentIndex())).join("") : emptyCard("🫗", "Nothing logged yet", "Log a drink to start your stats.")}
+    <p class="muted tiny">One standard drink is 14 g of pure alcohol: about a 355 ml beer at 5%, 150 ml of wine at 12%, or a 44 ml shot at 40%.</p>
+  </div>`;
+}
+function viewPerson() {
+  const rows = S.drinks[S.person] || [];
+  const ds = allDrinks().filter((d) => d.uid === S.person), ci = cheerIndex(), cm = commentIndex();
+  return `<div class="stack">
+    <div class="row">${avatarImg(S.person, "l")}<div class="grow"><h1 class="trunc">${esc(nameOf(S.person))}</h1><div class="muted small">${rows.length} drinks logged</div></div></div>
+    ${statsView(rows, true)}
+    <h2>Recent drinks</h2>${ds.length ? ds.slice(0, 30).map((d) => drinkCard(d, ci, cm)).join("") : `<div class="card empty muted">No drinks yet.</div>`}
+  </div>`;
+}
+
+// ---------- log
+function viewLog() {
+  if (!S.canWrite) return emptyCard("🔒", "Logging is off for you", "Ask the owner to share this page with you as a Contributor.", false);
+  const L = S.log, std = stdOf(Number(L.ml) || 0, Number(L.abv) || 0);
+  const recent = []; const seen = new Set();
+  for (const d of [...(S.drinks[S.uid] || [])].reverse()) { const k = d.type + d.name + d.ml + d.abv; if (!seen.has(k)) { seen.add(k); recent.push(d); } if (recent.length >= 6) break; }
+  const sc = L.scan, picked = sc && sc.drinks[L.picked];
+  const groups = myGroups().filter((g) => S.groups[g]);
+  return `<form class="stack" data-form="log" style="gap:18px">
+    <h1>Log a drink</h1>
+    <section class="card stack scan">
+      ${sample ? `${imageScan ? `<label class="btn primary big" style="${L.scanning ? "pointer-events:none;opacity:.6" : ""}">${L.scanning ? "Reading the label…" : "📷 Scan a drink"}<input type="file" accept="image/*" capture="environment" class="sr" id="scanFile" ${L.scanning ? "disabled" : ""}></label>` : ""}
+      <div class="row"><input class="input" id="quick" placeholder='Or type it: "3 modelos"' maxlength="200" value="${esc(L.quick)}" aria-label="Describe what you drank" ${L.scanning ? "disabled" : ""}><button type="button" class="btn" data-act="quick" ${L.scanning ? "disabled" : ""}>Fill in</button></div>
+      ${sc ? `<div class="stack small" style="gap:6px"><div>${esc(sc.message)}</div>
+        ${sc.drinks.length > 1 ? `<div class="row" style="flex-wrap:wrap;gap:6px">${sc.drinks.map((d, i) => `<button type="button" class="chip ${i === L.picked ? "on" : ""}" style="border:1px solid var(--border)" data-act="pick" data-i="${i}">${meta(d.drink_type).emoji} ${d.quantity > 1 ? d.quantity + "× " : ""}${esc(d.name || meta(d.drink_type).label)}</button>`).join("")}</div>` : ""}
+        ${picked && !picked.read_from_label ? `<div class="muted tiny">Size and ABV are typical values for this drink. Check them below.</div>` : ""}</div>` : ""}`
+      : `<div class="muted small">Scanning needs Claude, which isn't available in this view. Fill in the form below.</div>`}
+    </section>
+    ${recent.length ? `<div><div class="lbl">Again?</div><div class="row" style="flex-wrap:wrap;gap:6px">${recent.map((d, i) => `<button type="button" class="btn sm" data-act="again" data-i="${i}">${meta(d.type).emoji} ${esc(d.name || meta(d.type).label)} <span class="muted">${+d.ml}ml</span></button>`).join("")}</div></div>` : ""}
+    <fieldset style="border:0;padding:0;margin:0"><legend class="lbl">Type</legend><div class="types">${TYPES.map((t) => `<button type="button" class="type ${L.type === t.type ? "on" : ""}" aria-pressed="${L.type === t.type}" data-act="type" data-t="${t.type}"><span aria-hidden="true">${t.emoji}</span>${t.label}</button>`).join("")}</div></fieldset>
+    <div><label class="lbl" for="f-name">What is it? (optional)</label><input class="input" id="f-name" data-f="name" value="${esc(L.name)}" maxlength="80" placeholder="${L.type === "beer" ? "e.g. Guinness" : "e.g. Margarita"}"></div>
+    <div class="grid2"><div><label class="lbl" for="f-ml">Size (ml)</label><input class="input num" id="f-ml" data-f="ml" type="number" inputmode="decimal" min="1" max="5000" step="any" value="${esc(L.ml)}" required></div>
+      <div><label class="lbl" for="f-abv">ABV (%)</label><input class="input num" id="f-abv" data-f="abv" type="number" inputmode="decimal" min="0" max="100" step="0.1" value="${esc(L.abv)}" required></div></div>
+    <div class="row" style="flex-wrap:wrap;gap:4px;margin-top:-10px">${SIZES.map(([l, ml]) => `<button type="button" class="chip ${Number(L.ml) === ml ? "on" : ""}" data-act="size" data-ml="${ml}">${l}</button>`).join("")}</div>
+    <div class="card row" style="background:var(--surface-2)">
+      <span class="muted">How many?</span>
+      <div class="stepper"><button type="button" class="btn" data-act="qty" data-d="-1" aria-label="One fewer">−</button><span class="num" style="min-width:22px;text-align:center;font-size:18px;font-weight:700">${L.qty}</span><button type="button" class="btn" data-act="qty" data-d="1" aria-label="One more">+</button></div>
+      <span class="spacer"></span><div class="std num"><b id="stdOut">${fmtStd(std * L.qty)}</b><span class="tiny muted">std drinks</span></div>
+    </div>
+    <div class="grid2 stack-sm"><div><label class="lbl" for="f-when">When</label><input class="input" id="f-when" data-f="when" type="datetime-local" value="${esc(L.when)}" required></div>
+      <div><label class="lbl" for="f-group">Group / event</label><select class="input" id="f-group" data-f="group"><option value="">None</option>${groups.map((g) => `<option value="${esc(g)}" ${L.group === g ? "selected" : ""}>${esc(S.groups[g].name)}</option>`).join("")}</select></div></div>
+    <div><label class="lbl" for="f-notes">Notes</label><textarea class="input" id="f-notes" data-f="notes" rows="2" maxlength="500" placeholder="Tasting notes, where you are, who's buying…">${esc(L.notes)}</textarea></div>
+    <div><div class="lbl">Photo</div>${L.photoUrl ? `<div class="row" style="align-items:flex-start"><img src="${L.photoUrl}" alt="" style="max-height:180px;border-radius:12px"><button type="button" class="btn sm" data-act="nophoto">Remove</button></div>` : `<input type="file" accept="image/*" id="photoFile" class="small">`}
+      ${L.photo && !assets ? `<div class="muted tiny" style="margin-top:4px">Photos can't be saved in this view, so it will only be used for scanning.</div>` : ""}</div>
+    ${L.error ? `<div class="err">${esc(L.error)}</div>` : ""}
+    <button class="btn primary big" ${L.saving || L.scanning ? "disabled" : ""}>${L.saving ? "Saving…" : L.qty > 1 ? `Log ${L.qty} drinks 🍻` : "Log it 🍻"}</button>
+  </form>`;
+}
+
+async function compress(file) {
+  try {
+    const bmp = await createImageBitmap(file);
+    const k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement("canvas"); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+    const blob = await new Promise((r) => c.toBlob(r, "image/jpeg", 0.85));
+    return blob || file;
+  } catch { return file; }
+}
+function setPhoto(blob) {
+  const L = S.log;
+  if (L.photoUrl) URL.revokeObjectURL(L.photoUrl);
+  L.photo = blob; L.photoUrl = blob ? URL.createObjectURL(blob) : null;
+}
+
+const SCAN_PROMPT = `You read drinks for a drink-logging app. Reply with ONLY a JSON object, no other text:
+{"drinks":[{"drink_type":"beer","name":"Modelo Especial","volume_ml":355,"abv":4.4,"quantity":1,"read_from_label":true}],"message":"Found 1 Modelo Especial."}
+
+Rules:
+- drink_type is one of: beer, wine, cocktail, shot (straight spirit, ~44 ml), spirit (mixed drink like a vodka soda), cider, seltzer (hard seltzer), other.
+- Read brand, product, volume and ABV from the label when visible. "12 FL OZ" = 355 ml, "16 FL OZ" = 473 ml, "24 FL OZ" = 710 ml.
+- If something is not visible or stated, use the well-known values for that product (Modelo Especial: 4.4%, 355 ml can) and set read_from_label to false. Unknown product: typical values for its type.
+- volume_ml is ONE unit. quantity counts identical units in the photo, or the number in the message ("3 modelos" -> 3). Default 1.
+- Group identical drinks into one entry; list different drinks separately (at most 5).
+- Non-alcoholic drinks or anything that isn't a drink: return "drinks": [] and say so in message.
+- message: one short friendly sentence, under 15 words. Don't comment on how much someone drinks.`;
+
+async function runScan({ image, text }) {
+  const L = S.log;
+  L.error = ""; L.scan = null; L.scanning = true; render();
+  try {
+    const prompt = SCAN_PROMPT + "\n\n" + (text ? `The user says: """${text.slice(0, 200)}"""` : "The attached photo shows what they're drinking.");
+    const opts = { modelTier: "quick" };
+    if (image) opts.images = [image];
+    const raw = await sample.json(prompt, opts);
+    const list = Array.isArray(raw?.drinks) ? raw.drinks : [];
+    const drinks = list.slice(0, 5).map((d) => ({
+      drink_type: TYPES.some((t) => t.type === d?.drink_type) ? d.drink_type : "other",
+      name: String(d?.name ?? "").slice(0, 80),
+      volume_ml: Math.min(5000, Math.max(1, Number(d?.volume_ml) || 355)),
+      abv: Math.min(100, Math.max(0, Number(d?.abv) || 0)),
+      quantity: Math.min(30, Math.max(1, Math.round(Number(d?.quantity) || 1))),
+      read_from_label: !!d?.read_from_label,
+    }));
+    L.scan = { drinks, message: String(raw?.message || (drinks.length ? "Filled in below." : "Couldn't spot a drink there.")).slice(0, 160) };
+    if (drinks.length) applyScanned(0);
+  } catch (e) {
+    const msg = {
+      not_granted: "Scanning needs your OK to use Claude. Fill in the form instead.",
+      rate_limited: "Too many scans right now. Try again in a minute.",
+      image_rejected: "That photo didn't work. Try a different one.",
+      images_unavailable: "Photo scanning isn't available here. Type it instead.",
+      invalid_json: "Couldn't read that one. Try again or type it in.",
+      refused: "Couldn't read that one. Try another photo or type it in.",
+      cancelled: "",
+    }[e?.code];
+    L.error = msg ?? "Scan didn't work. Try again or fill it in by hand.";
+  } finally { L.scanning = false; render(); }
+}
+function applyScanned(i) {
+  const L = S.log, d = L.scan.drinks[i];
+  L.picked = i; L.type = d.drink_type; L.name = d.name;
+  L.ml = String(Math.round(d.volume_ml * 10) / 10); L.abv = String(Math.round(d.abv * 10) / 10); L.qty = d.quantity;
+}
+
+async function submitLog() {
+  const L = S.log;
+  const ml = Number(L.ml), abv = Number(L.abv), at = new Date(L.when).getTime();
+  if (!(ml > 0 && ml <= 5000)) { L.error = "Size must be between 1 and 5000 ml."; return render(); }
+  if (!(abv >= 0 && abv <= 100)) { L.error = "ABV must be between 0 and 100%."; return render(); }
+  if (!Number.isFinite(at)) { L.error = "Pick a valid time."; return render(); }
+  L.saving = true; L.error = ""; render();
+  let photo = null;
+  if (L.photo && assets) {
+    try { photo = (await assets.upload(L.photo)).id; } catch { toast("The photo couldn't be saved, so the drink was logged without it."); }
+  }
+  const base = { type: L.type, name: L.name.trim().slice(0, 80), ml, abv, std: stdOf(ml, abv), at, group: L.group || null };
+  const entries = Array.from({ length: L.qty }, (_, i) => ({ ...base, id: rid(), notes: i === 0 ? L.notes.trim().slice(0, 500) : "", photo: i === 0 ? photo : null }));
+  try {
+    const p = addDrinks(entries);
+    toast(L.qty > 1 ? `Logged ${L.qty} drinks 🍻` : "Logged 🍻");
+    if (base.group) S.group = base.group;
+    go(base.group ? "group" : "feed");
+    await p;
+  } catch { /* toast already shown */ }
+}
+
+// ---------------------------------------------------------------- events
+document.addEventListener("click", (e) => {
+  const el = e.target.closest("[data-act]"); if (!el) return;
+  const a = el.dataset.act, L = S.log;
+  if (["type", "size", "qty", "again", "pick", "quick", "nophoto"].includes(a)) e.preventDefault();
+  switch (a) {
+    case "person": S.person = el.dataset.uid; go("person"); return;
+    case "group": S.group = el.dataset.gid; go("group"); return;
+    case "more": S.feedLimit += 30; break;
+    case "period": S.period = el.dataset.p; break;
+    case "cheer": toggleCheer(el.dataset.key); return;
+    case "comments": { const k = el.dataset.key; S.openComments.has(k) ? S.openComments.delete(k) : S.openComments.add(k); break; }
+    case "uncomment": deleteComment(el.dataset.id); return;
+    case "del": S.confirmDelete = el.dataset.key; setTimeout(() => { if (S.confirmDelete === el.dataset.key) { S.confirmDelete = null; scheduleRender(); } }, 4000); break;
+    case "del-yes": S.confirmDelete = null; deleteDrink(el.dataset.id); return;
+    case "del-no": S.confirmDelete = null; break;
+    case "join": joinGroup(el.dataset.gid); return;
+    case "leave": leaveGroup(el.dataset.gid); return;
+    case "bar": S.hover = Number(el.dataset.i); break;
+    case "type": { const m = meta(el.dataset.t); L.type = m.type; L.ml = String(m.ml); L.abv = String(m.abv); break; }
+    case "size": L.ml = el.dataset.ml; break;
+    case "qty": L.qty = Math.min(30, Math.max(1, L.qty + Number(el.dataset.d))); break;
+    case "again": { const r = [...new Map([...(S.drinks[S.uid] || [])].reverse().map((d) => [d.type + d.name + d.ml + d.abv, d])).values()][Number(el.dataset.i)]; if (r) { L.type = r.type; L.name = r.name; L.ml = String(r.ml); L.abv = String(r.abv); } break; }
+    case "pick": applyScanned(Number(el.dataset.i)); break;
+    case "quick": if (L.quick.trim()) runScan({ text: L.quick.trim() }); return;
+    case "nophoto": setPhoto(null); break;
+  }
+  render();
+});
+document.addEventListener("mouseover", (e) => {
+  const el = e.target.closest(".barhit"); if (el && S.hover !== Number(el.dataset.i)) { S.hover = Number(el.dataset.i); render(); }
+});
+document.addEventListener("input", (e) => {
+  const el = e.target, L = S.log;
+  if (L && el.dataset.f) {
+    L[el.dataset.f] = el.value;
+    if (el.dataset.f === "ml" || el.dataset.f === "abv") { const o = document.getElementById("stdOut"); if (o) o.textContent = fmtStd(stdOf(Number(L.ml) || 0, Number(L.abv) || 0) * L.qty); }
+  }
+  if (L && el.id === "quick") L.quick = el.value;
+  if (el.name === "kind") el.closest("form").querySelectorAll("label.tab").forEach((lb) => lb.classList.toggle("on", lb.contains(el)));
+});
+document.addEventListener("change", async (e) => {
+  const el = e.target;
+  if (el.dataset.f === "group" && S.log) S.log.group = el.value;
+  if (el.id === "scanFile" && el.files[0]) { const small = await compress(el.files[0]); setPhoto(small); runScan({ image: small }); }
+  if (el.id === "photoFile" && el.files[0]) { setPhoto(await compress(el.files[0])); render(); }
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && e.target.id === "quick") { e.preventDefault(); if (S.log.quick.trim()) runScan({ text: S.log.quick.trim() }); }
+});
+document.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = e.target, kind = f.dataset.form;
+  if (kind === "log") submitLog();
+  if (kind === "comment") { const inp = f.elements.body; const body = inp.value.trim(); if (body) { addComment(f.dataset.key, body); inp.value = ""; render(); } }
+  if (kind === "group") {
+    const name = f.elements.name.value.trim(); if (!name) return;
+    const btn = f.querySelector("button"); btn.disabled = true;
+    try { const id = await createGroup(name, f.elements.kind.value); f.elements.name.value = ""; S.group = id; go("group"); }
+    catch { toast("Couldn't create the group. Try again."); btn.disabled = false; }
+  }
+});
+
+render();
+boot();
+</script>
