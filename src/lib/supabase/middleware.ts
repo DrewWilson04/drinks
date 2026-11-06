@@ -37,6 +37,10 @@ export async function updateSession(request: NextRequest) {
     (p) => path === p || (p !== "/" && path.startsWith(p + "/")),
   );
 
+  if (!user && !isPublic && path.startsWith("/api/")) {
+    return NextResponse.json({ error: "Sign in first." }, { status: 401 });
+  }
+
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
