@@ -30,6 +30,12 @@
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--surface-2); border-radius: 12px; padding: 3px; }
+.seg button { border: 0; background: none; border-radius: 10px; padding: 8px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.seg button.on { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgb(0 0 0 / .12); }
+details.more > summary { list-style: none; cursor: pointer; }
+details.more > summary::-webkit-details-marker { display: none; }
+details.more[open] .edit-hint { display: none; }
 body { background: var(--bg); color: var(--text); font: 15px/1.45 var(--font); }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -149,7 +155,7 @@ const TYPES = [
   { type: "other", label: "Other", emoji: "🍹", ml: 250, abv: 5 },
 ];
 const SIZES = [["Shot 44 ml", 44], ["Wine 150 ml", 150], ["Bottle 330 ml", 330], ["Can 12 oz", 355], ["US pint", 473], ["UK pint", 568]];
-const PERIODS = [["24h", "24 hours", 864e5], ["7d", "7 days", 7 * 864e5], ["30d", "30 days", 30 * 864e5], ["all", "All time", Infinity]];
+const PERIODS = [["today", "Today"], ["week", "This week"], ["month", "This month"], ["all", "All time"]];
 const ROUTES = ["feed", "log", "leaderboard", "groups", "me", "person", "group"];
 const TABS = [["feed", "Feed"], ["leaderboard", "Leaderboard"], ["groups", "Groups"], ["me", "My stats"]];
 const MAX_DRINKS_PER_PERSON = 1500;
@@ -181,15 +187,15 @@ const S = {
   uid: null, canWrite: false, status: "loading", // loading | ready | nodb | offline
   dbError: null, slow: false, loaded: false,
   drinks: {}, cheers: {}, comments: {}, groups: {}, members: {},
-  prof: {}, feedLimit: 30, period: "7d", openComments: new Set(),
+  friends: {}, prof: {}, feedLimit: 30, period: "week", boardScope: "friends", boardType: "all", openComments: new Set(),
   hover: null, confirmDelete: null, toast: "",
   log: null,
 };
 let db = null, user = null, sample = null, assets = null, imageScan = false;
 
 function freshLog() {
-  return { type: "beer", name: "", ml: "355", abv: "5", qty: 1, when: localInputNow(), group: S.group && isMember(S.group) ? S.group : "", notes: "",
-    photo: null, photoUrl: null, scanning: false, scan: null, picked: 0, quick: "", error: "", saving: false };
+  return { type: "beer", name: "", ml: "355", abv: "5", qty: 1, when: "", open: false, group: S.group && isMember(S.group) ? S.group : "", notes: "",
+    photo: null, photoUrl: null, scanning: false, scan: null, picked: 0, error: "", saving: false };
 }
 
 // ---------------------------------------------------------------- derived data
@@ -210,6 +216,7 @@ function commentIndex() {
   return by;
 }
 const myGroups = () => S.members[S.uid] || [];
+const myFriends = () => S.friends[S.uid] || [];
 const isMember = (gid) => myGroups().includes(gid);
 function groupMembers(gid) { return Object.entries(S.members).filter(([, g]) => g.includes(gid)).map(([u]) => u); }
 function nameOf(uid) { return (S.prof[uid] && S.prof[uid].name) || (uid === S.uid ? "You" : "Someone"); }
@@ -250,6 +257,7 @@ async function boot() {
   sub("cheers", (s) => { const o = {}; s.docs.forEach((d) => { o[d.id] = Array.isArray(d.data().keys) ? d.data().keys : []; }); if (pendingMine.cheers) o[S.uid] = pendingMine.cheers; S.cheers = o; });
   sub("comments", (s) => { const o = {}; s.docs.forEach((d) => { o[d.id] = Array.isArray(d.data().items) ? d.data().items : []; }); if (pendingMine.comments) o[S.uid] = pendingMine.comments; S.comments = o; });
   sub("memberships", (s) => { const o = {}; s.docs.forEach((d) => { o[d.id] = Array.isArray(d.data().groups) ? d.data().groups : []; }); if (pendingMine.memberships) o[S.uid] = pendingMine.memberships; S.members = o; });
+  sub("friends", (s) => { const o = {}; s.docs.forEach((d) => { o[d.id] = Array.isArray(d.data().uids) ? d.data().uids : []; }); if (pendingMine.friends) o[S.uid] = pendingMine.friends; S.friends = o; });
   sub("groups", (s) => { const o = {}; s.docs.forEach((d) => { o[d.id] = d.data(); }); S.groups = o; });
   render();
 }
@@ -257,7 +265,7 @@ async function boot() {
 let profileBusy = false;
 async function loadProfiles() {
   if (!user || profileBusy) return;
-  const ids = new Set([S.uid, ...Object.keys(S.drinks), ...Object.keys(S.members), ...Object.keys(S.comments)].filter(Boolean));
+  const ids = new Set([S.uid, ...Object.keys(S.drinks), ...Object.keys(S.members), ...Object.keys(S.comments), ...myFriends()].filter(Boolean));
   const missing = [...ids].filter((id) => !S.prof[id]);
   if (!missing.length) return;
   profileBusy = true;
@@ -286,7 +294,7 @@ function saveMine(col, field, value) {
   });
 }
 function setMine(col, field, value) {
-  const map = { drinks: "drinks", cheers: "cheers", comments: "comments", memberships: "members" }[col];
+  const map = { drinks: "drinks", cheers: "cheers", comments: "comments", memberships: "members", friends: "friends" }[col];
   S[map] = { ...S[map], [S.uid]: value };
   scheduleRender();
   return saveMine(col, field, value);
@@ -313,6 +321,8 @@ function addComment(key, body) {
   setMine("comments", "items", items).catch(() => {});
 }
 function deleteComment(id) { setMine("comments", "items", (S.comments[S.uid] || []).filter((c) => c.id !== id)).catch(() => {}); }
+function addFriend(uid) { if (uid !== S.uid && !myFriends().includes(uid)) setMine("friends", "uids", [...myFriends(), uid].slice(-500)).catch(() => {}); }
+function removeFriend(uid) { setMine("friends", "uids", myFriends().filter((u) => u !== uid)).catch(() => {}); }
 function joinGroup(gid) { if (!isMember(gid)) setMine("memberships", "groups", [...myGroups(), gid]).catch(() => {}); }
 function leaveGroup(gid) { setMine("memberships", "groups", myGroups().filter((g) => g !== gid)).catch(() => {}); }
 async function createGroup(name, kind) {
@@ -433,12 +443,43 @@ function boardList(rows) {
 function periodTabs() {
   return `<div class="row" style="gap:4px;flex-wrap:wrap">${PERIODS.map(([k, l]) => `<button class="tab ${S.period === k ? "on" : ""}" data-act="period" data-p="${k}">${l}</button>`).join("")}</div>`;
 }
-function inPeriod(d) { const p = PERIODS.find((x) => x[0] === S.period); return Date.now() - d.at <= p[2]; }
-
+function periodStart(p) {
+  const d = new Date(); d.setHours(0, 0, 0, 0);
+  if (p === "today") return d.getTime();
+  if (p === "week") { d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); } // weeks start Monday
+  if (p === "month") { d.setDate(1); return d.getTime(); }
+  return -Infinity;
+}
+function inPeriod(d) { return d.at >= periodStart(S.period); }
+function friendButton(uid) {
+  if (!S.canWrite || uid === S.uid) return "";
+  return myFriends().includes(uid)
+    ? `<button class="btn sm" data-act="unfriend" data-uid="${esc(uid)}">Friends ✓</button>`
+    : `<button class="btn sm primary" data-act="friend" data-uid="${esc(uid)}">Add friend</button>`;
+}
+function friendSuggestions() {
+  const fr = new Set(myFriends());
+  const people = [...new Set([...Object.keys(S.drinks), ...Object.keys(S.members)])].filter((u) => u !== S.uid && !fr.has(u));
+  if (!people.length) return fr.size ? "" : `<div class="card muted small">When your friends open this page and log a drink, they'll show up here so you can add them.</div>`;
+  return `<section class="stack" style="gap:8px"><h2>Add friends</h2>${people.slice(0, 12).map((u) => `<div class="card row">${avatarImg(u, "s")}<div class="grow trunc">${personLink(u)}</div>${friendButton(u)}</div>`).join("")}</section>`;
+}
 function viewBoard() {
   if (!S.loaded) return loadingCard();
-  return `<div class="stack"><h1>Leaderboard</h1>${periodTabs()}${boardList(leaderboard(inPeriod))}
-    <p class="muted tiny">Ranked by standard drinks (14 g of alcohol each).</p></div>`;
+  const circle = new Set([S.uid, ...myFriends()]);
+  const rows = leaderboard((d) => inPeriod(d)
+    && (S.boardType === "all" || d.type === S.boardType)
+    && (S.boardScope === "global" || circle.has(d.uid)));
+  const typeChips = [["all", "All drinks", ""], ...TYPES.map((t) => [t.type, t.label, t.emoji])];
+  return `<div class="stack"><h1>Leaderboard</h1>
+    <div class="seg" role="group" aria-label="Who to compare">
+      <button class="${S.boardScope === "friends" ? "on" : ""}" aria-pressed="${S.boardScope === "friends"}" data-act="scope" data-s="friends">Friends</button>
+      <button class="${S.boardScope === "global" ? "on" : ""}" aria-pressed="${S.boardScope === "global"}" data-act="scope" data-s="global">Global</button>
+    </div>
+    ${periodTabs()}
+    <div class="row" style="gap:4px;flex-wrap:wrap">${typeChips.map(([k, l, e]) => `<button class="chip ${S.boardType === k ? "on" : ""}" style="border:1px solid var(--border)" data-act="btype" data-t="${k}">${e} ${l}</button>`).join("")}</div>
+    ${boardList(rows)}
+    ${S.boardScope === "friends" ? friendSuggestions() : ""}
+    <p class="muted tiny">Ranked by standard drinks (14 g of alcohol each). Weeks start on Monday.</p></div>`;
 }
 
 function viewGroups() {
@@ -528,46 +569,65 @@ function viewPerson() {
   const rows = S.drinks[S.person] || [];
   const ds = allDrinks().filter((d) => d.uid === S.person), ci = cheerIndex(), cm = commentIndex();
   return `<div class="stack">
-    <div class="row">${avatarImg(S.person, "l")}<div class="grow"><h1 class="trunc">${esc(nameOf(S.person))}</h1><div class="muted small">${rows.length} drinks logged</div></div></div>
+    <div class="row">${avatarImg(S.person, "l")}<div class="grow"><h1 class="trunc">${esc(nameOf(S.person))}</h1><div class="muted small">${rows.length} drinks logged</div></div>${friendButton(S.person)}</div>
     ${statsView(rows, true)}
     <h2>Recent drinks</h2>${ds.length ? ds.slice(0, 30).map((d) => drinkCard(d, ci, cm)).join("") : `<div class="card empty muted">No drinks yet.</div>`}
   </div>`;
 }
 
 // ---------- log
+function recentDrinks() {
+  const out = [], seen = new Set();
+  for (const d of [...(S.drinks[S.uid] || [])].reverse()) {
+    const k = (d.name || "").trim().toLowerCase();
+    if (k && !seen.has(k)) { seen.add(k); out.push(d); }
+    if (out.length >= 25) break;
+  }
+  return out;
+}
+function summaryLine() {
+  const L = S.log;
+  const when = L.when ? new Date(L.when).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "right now";
+  const g = L.group && S.groups[L.group] ? " · " + S.groups[L.group].name : "";
+  return `${+L.ml || "?"} ml · ${+L.abv || 0}% ABV · ${when}${g}`;
+}
 function viewLog() {
   if (!S.canWrite) return emptyCard("🔒", "Logging is off for you", "Ask the owner to share this page with you as a Contributor.", false);
   const L = S.log, std = stdOf(Number(L.ml) || 0, Number(L.abv) || 0);
-  const recent = []; const seen = new Set();
-  for (const d of [...(S.drinks[S.uid] || [])].reverse()) { const k = d.type + d.name + d.ml + d.abv; if (!seen.has(k)) { seen.add(k); recent.push(d); } if (recent.length >= 6) break; }
   const sc = L.scan, picked = sc && sc.drinks[L.picked];
   const groups = myGroups().filter((g) => S.groups[g]);
   return `<form class="stack" data-form="log" style="gap:18px">
-    <h1>Log a drink</h1>
-    <section class="card stack scan">
-      ${sample ? `${imageScan ? `<label class="btn primary big" style="${L.scanning ? "pointer-events:none;opacity:.6" : ""}">${L.scanning ? "Reading the label…" : "📷 Scan a drink"}<input type="file" accept="image/*" capture="environment" class="sr" id="scanFile" ${L.scanning ? "disabled" : ""}></label>` : ""}
-      <div class="row"><input class="input" id="quick" placeholder='Or type it: "3 modelos"' maxlength="200" value="${esc(L.quick)}" aria-label="Describe what you drank" ${L.scanning ? "disabled" : ""}><button type="button" class="btn" data-act="quick" ${L.scanning ? "disabled" : ""}>Fill in</button></div>
-      ${sc ? `<div class="stack small" style="gap:6px"><div>${esc(sc.message)}</div>
-        ${sc.drinks.length > 1 ? `<div class="row" style="flex-wrap:wrap;gap:6px">${sc.drinks.map((d, i) => `<button type="button" class="chip ${i === L.picked ? "on" : ""}" style="border:1px solid var(--border)" data-act="pick" data-i="${i}">${meta(d.drink_type).emoji} ${d.quantity > 1 ? d.quantity + "× " : ""}${esc(d.name || meta(d.drink_type).label)}</button>`).join("")}</div>` : ""}
-        ${picked && !picked.read_from_label ? `<div class="muted tiny">Size and ABV are typical values for this drink. Check them below.</div>` : ""}</div>` : ""}`
-      : `<div class="muted small">Scanning needs Claude, which isn't available in this view. Fill in the form below.</div>`}
-    </section>
-    ${recent.length ? `<div><div class="lbl">Again?</div><div class="row" style="flex-wrap:wrap;gap:6px">${recent.map((d, i) => `<button type="button" class="btn sm" data-act="again" data-i="${i}">${meta(d.type).emoji} ${esc(d.name || meta(d.type).label)} <span class="muted">${+d.ml}ml</span></button>`).join("")}</div></div>` : ""}
+    <div class="row"><h1 class="grow">Log a drink</h1>
+      ${sample && imageScan ? `<label class="btn sm" style="${L.scanning ? "pointer-events:none;opacity:.6" : ""}">📷 Scan<input type="file" accept="image/*" capture="environment" class="sr" id="scanFile" ${L.scanning ? "disabled" : ""}></label>` : ""}</div>
+    ${L.scanning ? `<div class="notice small">Looking it up…</div>` : sc ? `<div class="notice small stack" style="gap:6px"><div>${esc(sc.message)}</div>
+      ${sc.drinks.length > 1 ? `<div class="row" style="flex-wrap:wrap;gap:6px">${sc.drinks.map((d, i) => `<button type="button" class="chip ${i === L.picked ? "on" : ""}" style="border:1px solid var(--border)" data-act="pick" data-i="${i}">${meta(d.drink_type).emoji} ${d.quantity > 1 ? d.quantity + "× " : ""}${esc(d.name || meta(d.drink_type).label)}</button>`).join("")}</div>` : ""}
+      ${picked && !picked.read_from_label ? `<div class="tiny">Size and ABV are typical values. Check them under Details.</div>` : ""}</div>` : ""}
     <fieldset style="border:0;padding:0;margin:0"><legend class="lbl">Type</legend><div class="types">${TYPES.map((t) => `<button type="button" class="type ${L.type === t.type ? "on" : ""}" aria-pressed="${L.type === t.type}" data-act="type" data-t="${t.type}"><span aria-hidden="true">${t.emoji}</span>${t.label}</button>`).join("")}</div></fieldset>
-    <div><label class="lbl" for="f-name">What is it? (optional)</label><input class="input" id="f-name" data-f="name" value="${esc(L.name)}" maxlength="80" placeholder="${L.type === "beer" ? "e.g. Guinness" : "e.g. Margarita"}"></div>
-    <div class="grid2"><div><label class="lbl" for="f-ml">Size (ml)</label><input class="input num" id="f-ml" data-f="ml" type="number" inputmode="decimal" min="1" max="5000" step="any" value="${esc(L.ml)}" required></div>
-      <div><label class="lbl" for="f-abv">ABV (%)</label><input class="input num" id="f-abv" data-f="abv" type="number" inputmode="decimal" min="0" max="100" step="0.1" value="${esc(L.abv)}" required></div></div>
-    <div class="row" style="flex-wrap:wrap;gap:4px;margin-top:-10px">${SIZES.map(([l, ml]) => `<button type="button" class="chip ${Number(L.ml) === ml ? "on" : ""}" data-act="size" data-ml="${ml}">${l}</button>`).join("")}</div>
+    <div><label class="lbl" for="f-name">What is it? (optional)</label>
+      <div class="row"><input class="input" id="f-name" data-f="name" list="recentNames" value="${esc(L.name)}" maxlength="80" autocomplete="off" placeholder="${L.type === "beer" ? "e.g. Modelo, Guinness" : "e.g. Margarita"}">
+      ${sample ? `<button type="button" class="btn" data-act="lookup" title="Fill in the size and ABV for this drink" ${L.scanning ? "disabled" : ""}>✨ Look up</button>` : ""}</div>
+      <datalist id="recentNames">${recentDrinks().map((d) => `<option value="${esc(d.name)}"></option>`).join("")}</datalist>
+    </div>
     <div class="card row" style="background:var(--surface-2)">
       <span class="muted">How many?</span>
       <div class="stepper"><button type="button" class="btn" data-act="qty" data-d="-1" aria-label="One fewer">−</button><span class="num" style="min-width:22px;text-align:center;font-size:18px;font-weight:700">${L.qty}</span><button type="button" class="btn" data-act="qty" data-d="1" aria-label="One more">+</button></div>
       <span class="spacer"></span><div class="std num"><b id="stdOut">${fmtStd(std * L.qty)}</b><span class="tiny muted">std drinks</span></div>
     </div>
-    <div class="grid2 stack-sm"><div><label class="lbl" for="f-when">When</label><input class="input" id="f-when" data-f="when" type="datetime-local" value="${esc(L.when)}" required></div>
-      <div><label class="lbl" for="f-group">Group / event</label><select class="input" id="f-group" data-f="group"><option value="">None</option>${groups.map((g) => `<option value="${esc(g)}" ${L.group === g ? "selected" : ""}>${esc(S.groups[g].name)}</option>`).join("")}</select></div></div>
-    <div><label class="lbl" for="f-notes">Notes</label><textarea class="input" id="f-notes" data-f="notes" rows="2" maxlength="500" placeholder="Tasting notes, where you are, who's buying…">${esc(L.notes)}</textarea></div>
-    <div><div class="lbl">Photo</div>${L.photoUrl ? `<div class="row" style="align-items:flex-start"><img src="${L.photoUrl}" alt="" style="max-height:180px;border-radius:12px"><button type="button" class="btn sm" data-act="nophoto">Remove</button></div>` : `<input type="file" accept="image/*" id="photoFile" class="small">`}
-      ${L.photo && !assets ? `<div class="muted tiny" style="margin-top:4px">Photos can't be saved in this view, so it will only be used for scanning.</div>` : ""}</div>
+    <details class="card more" id="more" ${L.open ? "open" : ""}>
+      <summary class="row"><div class="grow"><div style="font-weight:600">Details</div><div class="muted small trunc" id="sumLine">${esc(summaryLine())}</div></div><span class="chip edit-hint">Edit ▾</span></summary>
+      <div class="stack" style="margin-top:14px">
+        <div class="grid2"><div><label class="lbl" for="f-ml">Size (ml)</label><input class="input num" id="f-ml" data-f="ml" type="number" inputmode="decimal" min="1" max="5000" step="any" value="${esc(L.ml)}" required></div>
+          <div><label class="lbl" for="f-abv">ABV (%)</label><input class="input num" id="f-abv" data-f="abv" type="number" inputmode="decimal" min="0" max="100" step="0.1" value="${esc(L.abv)}" required></div></div>
+        <div class="row" style="flex-wrap:wrap;gap:4px;margin-top:-4px">${SIZES.map(([l, ml]) => `<button type="button" class="chip ${Number(L.ml) === ml ? "on" : ""}" data-act="size" data-ml="${ml}">${l}</button>`).join("")}</div>
+        <div><label class="lbl" for="f-when">When</label>
+          <div class="row"><input class="input" id="f-when" data-f="when" type="datetime-local" value="${esc(L.when || localInputNow())}">${L.when ? `<button type="button" class="btn sm" data-act="now">Now</button>` : ""}</div>
+          <div class="muted tiny" style="margin-top:4px">${L.when ? "Using the time you picked." : "Uses the time you tap Log. Change it if you're logging later."}</div></div>
+        ${groups.length ? `<div><label class="lbl" for="f-group">Group / event</label><select class="input" id="f-group" data-f="group"><option value="">None</option>${groups.map((g) => `<option value="${esc(g)}" ${L.group === g ? "selected" : ""}>${esc(S.groups[g].name)}</option>`).join("")}</select></div>` : ""}
+        <div><label class="lbl" for="f-notes">Notes</label><textarea class="input" id="f-notes" data-f="notes" rows="2" maxlength="500" placeholder="Tasting notes, where you are, who's buying…">${esc(L.notes)}</textarea></div>
+        <div><div class="lbl">Photo</div>${L.photoUrl ? `<div class="row" style="align-items:flex-start"><img src="${L.photoUrl}" alt="" style="max-height:160px;border-radius:12px"><button type="button" class="btn sm" data-act="nophoto">Remove</button></div>` : `<input type="file" accept="image/*" id="photoFile" class="small">`}
+          ${L.photo && !assets ? `<div class="muted tiny" style="margin-top:4px">Photos can't be saved in this view.</div>` : ""}</div>
+      </div>
+    </details>
     ${L.error ? `<div class="err">${esc(L.error)}</div>` : ""}
     <button class="btn primary big" ${L.saving || L.scanning ? "disabled" : ""}>${L.saving ? "Saving…" : L.qty > 1 ? `Log ${L.qty} drinks 🍻` : "Log it 🍻"}</button>
   </form>`;
@@ -605,7 +665,7 @@ async function runScan({ image, text }) {
   const L = S.log;
   L.error = ""; L.scan = null; L.scanning = true; render();
   try {
-    const prompt = SCAN_PROMPT + "\n\n" + (text ? `The user says: """${text.slice(0, 200)}"""` : "The attached photo shows what they're drinking.");
+    const prompt = SCAN_PROMPT + "\n\n" + (text ? `The user typed the drink's name: """${text.slice(0, 200)}"""` : "The attached photo shows what they're drinking.");
     const opts = { modelTier: "quick" };
     if (image) opts.images = [image];
     const raw = await sample.json(prompt, opts);
@@ -635,15 +695,15 @@ async function runScan({ image, text }) {
 }
 function applyScanned(i) {
   const L = S.log, d = L.scan.drinks[i];
-  L.picked = i; L.type = d.drink_type; L.name = d.name;
+  L.picked = i; L.type = d.drink_type; L.name = d.name || L.name;
   L.ml = String(Math.round(d.volume_ml * 10) / 10); L.abv = String(Math.round(d.abv * 10) / 10); L.qty = d.quantity;
 }
 
 async function submitLog() {
   const L = S.log;
-  const ml = Number(L.ml), abv = Number(L.abv), at = new Date(L.when).getTime();
-  if (!(ml > 0 && ml <= 5000)) { L.error = "Size must be between 1 and 5000 ml."; return render(); }
-  if (!(abv >= 0 && abv <= 100)) { L.error = "ABV must be between 0 and 100%."; return render(); }
+  const ml = Number(L.ml), abv = Number(L.abv), at = L.when ? new Date(L.when).getTime() : Date.now();
+  if (!(ml > 0 && ml <= 5000)) { L.error = "Size must be between 1 and 5000 ml."; L.open = true; return render(); }
+  if (!(abv >= 0 && abv <= 100)) { L.error = "ABV must be between 0 and 100%."; L.open = true; return render(); }
   if (!Number.isFinite(at)) { L.error = "Pick a valid time."; return render(); }
   L.saving = true; L.error = ""; render();
   let photo = null;
@@ -665,7 +725,7 @@ async function submitLog() {
 document.addEventListener("click", (e) => {
   const el = e.target.closest("[data-act]"); if (!el) return;
   const a = el.dataset.act, L = S.log;
-  if (["type", "size", "qty", "again", "pick", "quick", "nophoto"].includes(a)) e.preventDefault();
+  if (["type", "size", "qty", "pick", "lookup", "now", "nophoto"].includes(a)) e.preventDefault();
   switch (a) {
     case "person": S.person = el.dataset.uid; go("person"); return;
     case "group": S.group = el.dataset.gid; go("group"); return;
@@ -683,9 +743,13 @@ document.addEventListener("click", (e) => {
     case "type": { const m = meta(el.dataset.t); L.type = m.type; L.ml = String(m.ml); L.abv = String(m.abv); break; }
     case "size": L.ml = el.dataset.ml; break;
     case "qty": L.qty = Math.min(30, Math.max(1, L.qty + Number(el.dataset.d))); break;
-    case "again": { const r = [...new Map([...(S.drinks[S.uid] || [])].reverse().map((d) => [d.type + d.name + d.ml + d.abv, d])).values()][Number(el.dataset.i)]; if (r) { L.type = r.type; L.name = r.name; L.ml = String(r.ml); L.abv = String(r.abv); } break; }
     case "pick": applyScanned(Number(el.dataset.i)); break;
-    case "quick": if (L.quick.trim()) runScan({ text: L.quick.trim() }); return;
+    case "lookup": if (L.name.trim()) runScan({ text: L.name.trim() }); else { L.error = "Type what you're drinking first, like \"Modelo\"."; } break;
+    case "now": L.when = ""; break;
+    case "scope": S.boardScope = el.dataset.s; break;
+    case "btype": S.boardType = el.dataset.t; break;
+    case "friend": addFriend(el.dataset.uid); return;
+    case "unfriend": removeFriend(el.dataset.uid); return;
     case "nophoto": setPhoto(null); break;
   }
   render();
@@ -698,19 +762,23 @@ document.addEventListener("input", (e) => {
   if (L && el.dataset.f) {
     L[el.dataset.f] = el.value;
     if (el.dataset.f === "ml" || el.dataset.f === "abv") { const o = document.getElementById("stdOut"); if (o) o.textContent = fmtStd(stdOf(Number(L.ml) || 0, Number(L.abv) || 0) * L.qty); }
+    const sum = document.getElementById("sumLine"); if (sum) sum.textContent = summaryLine();
+    if (el.dataset.f === "name") {
+      // Picking one of your past drinks fills in its type, size and ABV.
+      const v = el.value.trim().toLowerCase();
+      const hit = v && recentDrinks().find((d) => d.name.trim().toLowerCase() === v);
+      if (hit) { L.type = hit.type; L.ml = String(hit.ml); L.abv = String(hit.abv); render(); }
+    }
   }
-  if (L && el.id === "quick") L.quick = el.value;
   if (el.name === "kind") el.closest("form").querySelectorAll("label.tab").forEach((lb) => lb.classList.toggle("on", lb.contains(el)));
 });
 document.addEventListener("change", async (e) => {
   const el = e.target;
-  if (el.dataset.f === "group" && S.log) S.log.group = el.value;
+  if (el.dataset.f === "group" && S.log) { S.log.group = el.value; const sum = document.getElementById("sumLine"); if (sum) sum.textContent = summaryLine(); }
   if (el.id === "scanFile" && el.files[0]) { const small = await compress(el.files[0]); setPhoto(small); runScan({ image: small }); }
   if (el.id === "photoFile" && el.files[0]) { setPhoto(await compress(el.files[0])); render(); }
 });
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && e.target.id === "quick") { e.preventDefault(); if (S.log.quick.trim()) runScan({ text: S.log.quick.trim() }); }
-});
+document.addEventListener("toggle", (e) => { if (e.target.id === "more" && S.log) S.log.open = e.target.open; }, true);
 document.addEventListener("submit", async (e) => {
   e.preventDefault();
   const f = e.target, kind = f.dataset.form;
